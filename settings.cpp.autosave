@@ -1,0 +1,203 @@
+#include "settings.h"
+
+/*
+struct Shortcut{
+    QString iconPath;
+    QString targetPath;
+};
+
+struct Spirit{
+    int id;
+    bool inuse;
+    bool active;
+    QList<Shortcut>shortcuts;
+};
+*/
+
+bool Settings::readJsonFile(QIODevice &device, QSettings::SettingsMap &map)
+{
+    bool ret = false;
+
+    QJsonParseError error;
+    map = QJsonDocument::fromJson(device.readAll() , &error).toVariant().toMap();
+
+    if( error.error == QJsonParseError::NoError )
+        ret = true;
+
+    return ret;
+}
+
+bool Settings::writeJsonFile(QIODevice &device, const QSettings::SettingsMap &map)
+{
+    bool ret = false;
+
+    QJsonDocument jsonDocument = QJsonDocument::fromVariant(QVariant::fromValue(map));
+    if ( device.write(jsonDocument.toJson()) != -1 )
+        ret = true;
+
+    return ret;
+}
+
+Settings::Settings(const Settings&){
+
+}
+
+Settings& Settings::operator=(const Settings&){
+    return *settings;
+}
+
+Settings* Settings::settings = new Settings();
+
+Settings* Settings::getInstance(){
+    return settings;
+}
+
+Settings::Settings()
+    //:
+    //QSettings (QSettings::IniFormat,QSettings::UserScope,"Croxx","Despirit")
+{
+    const QSettings::Format JsonFormat = QSettings::registerFormat("json",readJsonFile,writeJsonFile);
+    if(!this->contains("count")){
+        this->clear();
+        initSettings();
+    }
+}
+
+void Settings::initSettings(){
+    this->setValue("count",0);
+    QString dataDirPath = appDataPath();
+    QDir dir(appDataPath());
+    if(!dir.exists("Despirit")){
+        dir.mkdir("Despirit");
+    }
+    this->beginWriteArray("spirits");
+    this->endArray();
+    qDebug()<<"init settings";
+}
+
+QString Settings::appDataPath(){
+    return  QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+
+}
+
+int Settings::addNewSpirit(){
+    qDebug()<<"adding...";
+    int count = this->value("count").toInt();
+
+    this->beginWriteArray("spirits");
+    this->setArrayIndex(count);
+
+    this->setValue("id",count);
+    this->setValue("inuse",true);
+    this->setValue("active",true);
+    this->setValue("x",400);
+    this->setValue("y",400);
+    this->setValue("shortcut_count",0);
+
+    this->endArray();
+
+    this->setValue("count",count+1);
+
+    qDebug()<<"added";
+
+    return count;
+}
+
+bool Settings::removeSpirit(int id){
+    int size = this->beginReadArray("spirits");
+    this->endArray();
+    this->beginWriteArray("spirits");
+    for(int i=id;i<size-1;i++){
+        this->setArrayIndex(i);
+        //this->clear();
+        this->setArrayIndex(i+1);
+        QStringList keys = this->allKeys();
+        QStringList values;
+        for(int j=0;j<keys.size();j++){
+            values.append(this->value(keys.at(j)).toString());
+        }
+        this->setArrayIndex(i);
+        for(int j=0;j<keys.size();j++){
+            this->setValue(keys.at(j),values.at(j));
+        }
+    }
+
+    this->setArrayIndex(size-2);
+    this->endArray();
+    return true;
+}
+
+QList<int> Settings::getSpiritIdsInUse(){
+    QList<int>ids;
+    int size = this->beginReadArray("spirits");
+    for(int i=0;i<size;i++){
+        this->setArrayIndex(i);
+        int id = this->value("id").toInt();
+        qDebug()<<id;
+        bool inuse= this->value("inuse").toBool();
+        if(inuse)ids.append(id);
+    }
+    this->endArray();
+    return ids;
+}
+
+bool Settings::setPosition(int id,QPoint pos){
+    int size = this->beginReadArray("spirits");
+    this->endArray();
+    this->beginWriteArray("spirits");
+    this->setArrayIndex(id);
+    this->setValue("x",pos.x());
+    this->setValue("y",pos.y());
+    this->setArrayIndex(size-1);
+    this->endArray();
+    return true;
+}
+
+QPoint Settings::getPosition(int id){
+    this->beginReadArray("spirits");
+    this->setArrayIndex(id);
+    QPoint pos(this->value("x").toInt(),this->value("y").toInt());
+    this->endArray();
+    return pos;
+}
+
+int Settings::addShortcut(int id,QString lnkPath,HWND hwnd,HINSTANCE hInstance){
+    this->beginWriteArray("spirits");
+    this->setArrayIndex(id);
+    int count = this->value("shortcut_count").toInt();
+
+    qDebug()<<appDataPath();
+
+    lnkPath = WinUtils::convertQTPath2WinPath(lnkPath);
+    QFile::copy(lnkPath,appDataPath()+"/"+QString::number(id,10)+"_"+QString::number(count,10)+".lnk");
+    QFileInfo info(lnkPath);
+    QString targetPath = WinUtils::convertQTPath2WinPath(info.symLinkTarget());
+    QPixmap icon = WinUtils::getIconFromPEFile(hwnd,hInstance,targetPath.toStdWString().c_str());
+    icon.save(appDataPath()+"/"+QString::number(id,10)+"_"+QString::number(count,10)+".png");
+    this->setValue("shortcut_count",count+1);
+    this->endArray();
+    return count;
+}
+
+bool Settings::removeShortcut(int id,int sid){
+    return true;
+}
+
+int Settings::getShortcutCount(int id){
+    this->beginReadArray("spirits");
+    this->setArrayIndex(id);
+    int count = this->value("shortcut_count").toInt();
+    this->endArray();
+    return count;
+}
+
+QPixmap Settings::getShortcutIcon(int id,int sid){
+    QString iconPath = appDataPath()+"/"+QString::number(id,10)+"_"+QString::number(sid,10)+".png";
+    QPixmap icon;
+    icon.load(iconPath);
+    return icon;
+}
+
+void Settings::runShortcut(int id,int sid){
+
+}

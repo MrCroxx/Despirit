@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/image">
+        <file alias="question_mark">res/question_mark.png</file>
+        <file alias="ghost">res/ghost.png</file>
+        <file alias="ghost_icon">res/ghost_icon.png</file>
+        <file alias="cloth_background">res/cloth_background.png</file>
+    </qresource>
+</RCC>
